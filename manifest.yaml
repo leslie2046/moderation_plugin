@@ -3,7 +3,7 @@ type: plugin
 author: leslie2046
 name: moderation
 label:
-  en_US: moderation
+  en_US: Moderation
   zh_Hans: 敏感内容审查
 description:
   en_US: You can use this extension plugin to implement an API extension for content moderation, and you can customize keyword lists and separators, as well as strategies for keyword flagged.

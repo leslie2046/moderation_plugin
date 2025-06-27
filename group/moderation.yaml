@@ -17,8 +17,8 @@ settings:
       en_US: Keywords
       zh_Hans: 关键词
     placeholder:
-      en_US: Separated by customized separator character. Each word can have a maximum of 100 characters.
-      zh_Hans: 用自定义的分隔。每个最多 100 个字符。
+      en_US: Keywords separated by customized separator character. Each word can have a maximum of 100 characters.
+      zh_Hans: 用自定义的分隔符分割的关键词，每个最多 100 个字符。
 
   - name: separator
     type: text-input
