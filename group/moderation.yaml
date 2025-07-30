@@ -5,9 +5,11 @@ settings:
     label:
       en_US: API key
       zh_Hans: API 密钥
+      ja_JP: APIキー
     placeholder:
       en_US: Please input your API key
       zh_Hans: 请输入你的 API key
+      ja_JP: "あなたのAPIキーを入力してください"
 
   - name: keywords
     type: text-input
@@ -16,9 +18,11 @@ settings:
     label:
       en_US: Keywords
       zh_Hans: 关键词
+      ja_JP: "キーワード"
     placeholder:
-      en_US: Keywords separated by customized separator character. Each word can have a maximum of 100 characters.
-      zh_Hans: 用自定义的分隔符分割的关键词，每个最多 100 个字符。
+      en_US: Keywords separated by customized separator character.
+      zh_Hans: 用自定义的分隔符分割的关键词。
+      ja_JP: "カスタム区切り文字で分割したキーワード。"
 
   - name: separator
     type: text-input
@@ -27,9 +31,11 @@ settings:
     label:
       en_US: Separator
       zh_Hans: 分隔符
+      ja_JP: "区切り文字"
     placeholder:
       en_US: Separator，default is space
       zh_Hans: 分隔符,默认是空格
+      ja_JP: "区切り文字、デフォルトはスペース"
 
   - name: output_strategy
     type: select
@@ -37,16 +43,19 @@ settings:
     label:
       en_US: Strategy when output is flagged
       zh_Hans: 输出命中关键词的策略
+      ja_JP: "ヒットしたキーワードの出力ポリシー"
     default: "direct_output"
     options:
       - value: direct_output
         label:
           en_US: Direct out present response
           zh_Hans: 直接输出预设回复
+          ja_JP: "プリセット返答を直接出力"
       - value: overridden
         label:
-          en_US: Override by **
+          en_US: "Override by **"
           zh_Hans: 覆盖为**
+          ja_JP: "**で上書き"
 
   - name: input_preset_response
     type: text-input
@@ -54,10 +63,12 @@ settings:
     label:
       en_US: Response when input content is flagged
       zh_Hans: 输入命中关键词时的预设回复
+      ja_JP: "キーワードがヒットした際のプリセット返答を入力"
     default: "The content contains illegal content"
     placeholder:
       en_US: Response when input content is flagged
       zh_Hans: 输入命中关键词时的预设回复
+      ja_JP: "キーワードがヒットした際のプリセット返答を入力"
 
   - name: output_preset_response
     type: text-input
@@ -65,10 +76,12 @@ settings:
     label:
       en_US: Response when output content is flagged
       zh_Hans: 输出命中关键词时的预设回复
+      ja_JP: "キーワードがヒットした際のプリセット返答を出力"
     default: "The content contains illegal content"
     placeholder:
       en_US: Response when output content is flagged
       zh_Hans: 输出命中关键词时的预设回复
+      ja_JP: "キーワードがヒットした際のプリセット返答を出力"
     show_on:
     - value: direct_output
       variable: output_strategy

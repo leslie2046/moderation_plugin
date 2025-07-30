@@ -1,13 +1,15 @@
-version: 0.0.1
+version: 0.0.2
 type: plugin
 author: leslie2046
 name: moderation
 label:
   en_US: Moderation
   zh_Hans: 敏感内容审查
+  ja_JP: "センシティブな内容の審査"
 description:
   en_US: You can use this extension plugin to implement an API extension for content moderation, and you can customize keyword lists and separators, as well as strategies for keyword flagged.
   zh_Hans: 你可以使用这个扩展插件来实现一个敏感内容审查的API扩展，并且你可以自定义关键词列表和分隔符，以及关键词命中后的策略。
+  ja_JP: "この拡張プラグインを使用して、センシティブコンテンツ審査のAPI拡張を実装できます。また、キーワードリストや区切り文字をカスタマイズしたり、キーワードがヒットした際のポリシーを設定したりすることも可能です。"
 icon: icon.png
 resource:
   memory: 268435456
