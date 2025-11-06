@@ -1,4 +1,4 @@
-version: 0.0.2
+version: 0.0.3
 type: plugin
 author: leslie2046
 name: moderation
@@ -19,6 +19,7 @@ resource:
 plugins:
   endpoints:
     - group/moderation.yaml
+    - group/moderation_from_file.yaml
 meta:
   version: 0.0.1
   arch:
