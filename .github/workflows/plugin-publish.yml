@@ -4,106 +4,139 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Check publishing credentials
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_ACTION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::error::Set the PLUGIN_ACTION secret before publishing."
+            exit 1
+          fi
 
       - name: Download CLI tool
         run: |
-          mkdir -p $RUNNER_TEMP/bin
-          cd $RUNNER_TEMP/bin
-
-          wget https://github.com/langgenius/dify-plugin-daemon/releases/download/0.0.6/dify-plugin-linux-amd64
-          chmod +x dify-plugin-linux-amd64
-
-          echo "CLI tool location:"
-          pwd
-          ls -la dify-plugin-linux-amd64
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl --fail --location --retry 3 \
+            https://github.com/langgenius/dify-plugin-daemon/releases/download/0.0.6/dify-plugin-linux-amd64 \
+            --output "$RUNNER_TEMP/bin/dify-plugin-linux-amd64"
+          chmod +x "$RUNNER_TEMP/bin/dify-plugin-linux-amd64"
 
       - name: Get basic info from manifest
         id: get_basic_info
         run: |
-          PLUGIN_NAME=$(grep "^name:" manifest.yaml | cut -d' ' -f2)
-          echo "Plugin name: $PLUGIN_NAME"
-          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
-
-          VERSION=$(grep "^version:" manifest.yaml | cut -d' ' -f2)
-          echo "Plugin version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          # If the author's name is not your github username, you can change the author here
-          AUTHOR=$(grep "^author:" manifest.yaml | cut -d' ' -f2)
-          echo "Plugin author: $AUTHOR"
-          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          PLUGIN_NAME=$(awk '/^name:/ {print $2}' manifest.yaml)
+          VERSION=$(awk '/^version:/ {print $2}' manifest.yaml)
+          AUTHOR=$(awk '/^author:/ {print $2}' manifest.yaml)
+          if [[ ! "$PLUGIN_NAME" =~ ^[a-z0-9_-]+$ || \
+                ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || \
+                ! "$AUTHOR" =~ ^[a-zA-Z0-9-]+$ ]]; then
+            echo "::error::Invalid plugin name, version, or author in manifest.yaml."
+            exit 1
+          fi
+          {
+            echo "plugin_name=$PLUGIN_NAME"
+            echo "version=$VERSION"
+            echo "author=$AUTHOR"
+            echo "branch_name=bump-$PLUGIN_NAME-plugin-$VERSION"
+            echo "package_name=$PLUGIN_NAME-$VERSION.difypkg"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Package Plugin
-        id: package
+        env:
+          PACKAGE_NAME: ${{ steps.get_basic_info.outputs.package_name }}
         run: |
-          cd $GITHUB_WORKSPACE
-          PACKAGE_NAME="${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}.difypkg"
-          $RUNNER_TEMP/bin/dify-plugin-linux-amd64 plugin package . -o "$PACKAGE_NAME"
-
-          echo "Package result:"
-          ls -la "$PACKAGE_NAME"
-          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
-
-          echo "\nFull file path:"
-          pwd
-          echo "\nDirectory structure:"
-          tree || ls -R
+          set -euo pipefail
+          "$RUNNER_TEMP/bin/dify-plugin-linux-amd64" plugin package . -o "$PACKAGE_NAME"
+          test -s "$PACKAGE_NAME"
 
       - name: Checkout target repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          repository: ${{steps.get_basic_info.outputs.author}}/dify-plugins
+          repository: ${{ steps.get_basic_info.outputs.author }}/dify-plugins
+          ref: main
           path: dify-plugins
           token: ${{ secrets.PLUGIN_ACTION }}
           fetch-depth: 1
           persist-credentials: true
 
-      - name: Prepare and create PR
+      - name: Commit and push package
+        working-directory: dify-plugins
+        env:
+          PLUGIN_NAME: ${{ steps.get_basic_info.outputs.plugin_name }}
+          VERSION: ${{ steps.get_basic_info.outputs.version }}
+          AUTHOR: ${{ steps.get_basic_info.outputs.author }}
+          BRANCH_NAME: ${{ steps.get_basic_info.outputs.branch_name }}
+          PACKAGE_NAME: ${{ steps.get_basic_info.outputs.package_name }}
         run: |
-          PACKAGE_NAME="${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}.difypkg"
-          mkdir -p dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}
-          mv "$PACKAGE_NAME" dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}/
-
-          cd dify-plugins
-
+          set -euo pipefail
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-          git fetch origin main
-          git checkout main
-          git pull origin main
+          # Reuse the remote branch on retries, preserving its existing commits.
+          REMOTE_BRANCH=$(git ls-remote --heads origin "refs/heads/$BRANCH_NAME")
+          if [[ -n "$REMOTE_BRANCH" ]]; then
+            git fetch origin "refs/heads/$BRANCH_NAME"
+            git switch --create "$BRANCH_NAME" FETCH_HEAD
+          else
+            git switch --create "$BRANCH_NAME" origin/main
+          fi
 
-          BRANCH_NAME="bump-${{ steps.get_basic_info.outputs.plugin_name }}-plugin-${{ steps.get_basic_info.outputs.version }}"
-          git checkout -b "$BRANCH_NAME"
-
-          git add .
-          git commit -m "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}"
-
-          git push -u origin "$BRANCH_NAME" --force
-
-          git branch -a
-          echo "Waiting for branch to sync..."
-          sleep 10  # Wait 10 seconds for branch sync
+          PACKAGE_PATH="$AUTHOR/$PLUGIN_NAME/$PACKAGE_NAME"
+          mkdir -p "$AUTHOR/$PLUGIN_NAME"
+          cp "../$PACKAGE_NAME" "$PACKAGE_PATH"
+          git add -- "$PACKAGE_PATH"
+          if ! git diff --cached --quiet; then
+            git commit -m "bump $PLUGIN_NAME plugin to version $VERSION"
+          else
+            echo "Package is already up to date."
+          fi
+          git push -u origin "$BRANCH_NAME"
 
       - name: Create PR via GitHub API
         env:
-          # How to config the token:
-          # 1. Profile -> Settings -> Developer settings -> Personal access tokens -> Generate new token (with repo scope) -> Copy the token
-          # 2. Go to the target repository -> Settings -> Secrets and variables -> Actions -> New repository secret -> Add the token as PLUGIN_ACTION
           GH_TOKEN: ${{ secrets.PLUGIN_ACTION }}
+          PLUGIN_NAME: ${{ steps.get_basic_info.outputs.plugin_name }}
+          VERSION: ${{ steps.get_basic_info.outputs.version }}
+          AUTHOR: ${{ steps.get_basic_info.outputs.author }}
+          BRANCH_NAME: ${{ steps.get_basic_info.outputs.branch_name }}
         run: |
+          set -euo pipefail
+          # Only skip an existing PR; API/auth/network failures must fail the job.
+          EXISTING_PR=$(gh api repos/langgenius/dify-plugins/pulls \
+            --method GET \
+            -f state=open -f base=main -f "head=$AUTHOR:$BRANCH_NAME" \
+            --jq '.[0].html_url // empty')
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "PR already exists: $EXISTING_PR"
+            exit 0
+          fi
+
+          BODY_FILE="$RUNNER_TEMP/plugin-publish-pr.md"
+          printf 'Update %s plugin package to version %s.\n\nChanges:\n- Updated plugin package file.\n' \
+            "$PLUGIN_NAME" "$VERSION" > "$BODY_FILE"
           gh pr create \
             --repo langgenius/dify-plugins \
-            --head "${{ steps.get_basic_info.outputs.author }}:${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}" \
+            --head "$AUTHOR:$BRANCH_NAME" \
             --base main \
-            --title "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}" \
-            --body "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin package to version ${{ steps.get_basic_info.outputs.version }}
-
-            Changes:
-            - Updated plugin package file" || echo "PR already exists or creation skipped." # Handle cases where PR already exists
+            --title "bump $PLUGIN_NAME plugin to version $VERSION" \
+            --body-file "$BODY_FILE"

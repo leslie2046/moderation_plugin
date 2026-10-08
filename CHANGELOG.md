@@ -13,6 +13,9 @@
   overlapping occurrences of the same keyword.
 - Correct masking labels to `***` and add regression tests and CI.
 
+- Fix publishing branch/PR head mismatch, preserve failures, and support retries
+  without force-pushing or empty commits.
+
 ## 0.0.2
 
 - Keyword moderation endpoint with configurable output handling and Bearer authentication.
