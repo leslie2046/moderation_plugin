@@ -8,7 +8,7 @@ This plugin exposes a moderation endpoint that Dify can call to inspect both app
 
 - **Author:** leslie2046
 - **Repository:** https://github.com/leslie2046/moderation_plugin
-- **Plugin Version:** 0.0.2
+- **Plugin Version:** 0.0.3
 - **Runtime:** Python 3.12
 - **Minimum Dify Version:** 0.3.0
 
@@ -18,17 +18,17 @@ This plugin exposes a moderation endpoint that Dify can call to inspect both app
 - Moderates model output before it is returned to the user.
 - Uses a custom keyword list with a configurable separator.
 - Protects the moderation endpoint with a Bearer API key.
-- Supports two output handling modes:
+- Supports independent input and output handling modes:
   - `direct_output`: return a preset response immediately.
   - `overridden`: replace matched keywords with `***`.
 
-> Note: the current plugin settings expose `output_strategy`. When input content is flagged, the plugin returns the configured input preset response.
+Existing configurations without `input_strategy` retain `direct_output` behavior.
 
 ## Moderation Flow
 
 | Stage | What happens when a keyword is matched |
 | --- | --- |
-| Input moderation | The plugin checks `inputs` and `query`. If flagged, it returns the configured input preset response. |
+| Input moderation | The plugin checks top-level string values in `inputs` and `query`, returning the input preset response or masking matches according to `input_strategy`. Non-string values, including file objects, are preserved and not inspected recursively. |
 | Output moderation | The plugin checks generated `text`. If flagged, it either returns the preset response or masks keywords with `***`, depending on `output_strategy`. |
 
 ## Configure in Dify
@@ -55,8 +55,27 @@ _Copy the `API KEY` and `API Endpoint` from the previous step._
 | `keywords` | Yes | Keywords to detect in input or output content. |
 | `separator` | Yes | Character used to split the keyword list. Default is a space. |
 | `input_preset_response` | Yes | Response returned when input content is flagged. |
+| `input_strategy` | Yes | Input handling mode: `direct_output` (default) or `overridden`. |
 | `output_strategy` | Yes | Output handling mode: `direct_output` or `overridden`. |
 | `output_preset_response` | No | Response returned when output content is flagged in `direct_output` mode. |
+
+Matching is literal, case-sensitive substring matching. Keywords are trimmed,
+empty entries discarded, and duplicates removed. The separator may contain multiple
+characters but cannot be empty. Overlapping keyword occurrences are masked as one
+span, independently of keyword order; adjacent occurrences each become `***`.
+
+### Request errors
+
+All responses use JSON. Missing or malformed Bearer credentials return `401`;
+an incorrect key returns `403`. Authentication occurs before body parsing, and an
+empty configured key cannot authenticate. Malformed JSON, unsupported `point`, and
+invalid payload field types return `400`. Invalid moderation configuration returns
+`500` rather than silently approving content. Authenticated `ping` returns
+`{"result":"pong"}` without requiring moderation settings.
+
+The supported points are `ping`, `app.moderation.input`, and
+`app.moderation.output`. `params` must be an object; `inputs` must be an object,
+and `query` and `text` must be strings when present. Omitted fields use empty defaults.
 
 ## Examples
 
@@ -91,6 +110,15 @@ REMOTE_INSTALL_KEY=********-****-****-****-************
 ```bash
 python -m main
 ```
+
+### Run regression tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+See [CHANGELOG.md](./CHANGELOG.md) for the 0.0.3 release notes.
 
 ## Privacy
 

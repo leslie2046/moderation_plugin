@@ -1,107 +1,118 @@
+import hmac
 import json
 from typing import Mapping
-from werkzeug import Request, Response
+
 from dify_plugin import Endpoint
+from werkzeug import Request, Response
+from werkzeug.exceptions import BadRequest, UnsupportedMediaType
 
 
 class ModerationEndpoint(Endpoint):
+    @staticmethod
+    def _response(payload: dict, status: int = 200) -> Response:
+        return Response(json.dumps(payload, ensure_ascii=False), status=status,
+                        content_type="application/json")
+
     def _invoke(self, r: Request, values: Mapping, settings: Mapping) -> Response:
-        body = r.get_json()
-        point = body.get("point")
-        params = body.get("params", {})
+        # Authenticate before parsing untrusted request content.
+        expected_key = settings.get("api_key")
+        if not isinstance(expected_key, str) or not expected_key.strip():
+            return self._response({"error": "API key is not configured"}, 500)
         auth_header = r.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return Response("Missing or invalid Authorization header", status=401)
+        scheme, _, api_key = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not api_key.strip():
+            return self._response({"error": "Missing or invalid Authorization header"}, 401)
+        if not hmac.compare_digest(api_key.strip().encode(), expected_key.encode()):
+            return self._response({"error": "Invalid API key"}, 403)
 
-        api_key = auth_header[len("Bearer "):].strip()
-        expected_key = settings.get("api_key", "")
-
-        if api_key != expected_key:
-            return Response("Invalid API key", status=403)
+        try:
+            body = r.get_json()
+        except (BadRequest, UnsupportedMediaType):
+            return self._response({"error": "Request body must be a valid JSON object"}, 400)
+        if not isinstance(body, dict):
+            return self._response({"error": "Request body must be a JSON object"}, 400)
+        point = body.get("point")
+        if point == "ping":
+            return self._response({"result": "pong"})
+        if point not in ("app.moderation.input", "app.moderation.output"):
+            return self._response({"error": "Unsupported moderation point"}, 400)
+        params = body.get("params", {})
+        if not isinstance(params, dict):
+            return self._response({"error": "params must be a JSON object"}, 400)
 
         keywords_text = settings.get("keywords", "")
-        input_preset_response = settings.get("input_preset_response", "The content contains illegal content")
-        output_preset_response = settings.get("output_preset_response", "The content contains illegal content")
-        input_strategy = settings.get("input_strategy", "direct_output")
-        output_strategy = settings.get("output_strategy", "direct_output")
         separator = settings.get("separator", " ")
+        if not isinstance(separator, str) or not separator:
+            return self._response({"error": "Separator must be a non-empty string"}, 500)
+        if not isinstance(keywords_text, str):
+            return self._response({"error": "Keywords must be a string"}, 500)
+        keywords = list(dict.fromkeys(kw.strip() for kw in keywords_text.split(separator) if kw.strip()))
+        if not keywords:
+            return self._response({"error": "At least one keyword must be configured"}, 500)
 
-        keywords = [kw.strip() for kw in keywords_text.strip().split(separator) if kw.strip()]
+        stage = "input" if point == "app.moderation.input" else "output"
+        strategy = settings.get(f"{stage}_strategy", "direct_output")
+        if strategy not in ("direct_output", "overridden"):
+            return self._response({"error": f"Invalid {stage} strategy"}, 500)
+        preset = settings.get(f"{stage}_preset_response")
+        if preset is None:
+            preset = "The content contains illegal content"
+        if not isinstance(preset, str):
+            return self._response({"error": "Preset response must be a string"}, 500)
 
-        # 1. ping
-        if point == "ping":
-            return Response(json.dumps({"result": "pong"}), status=200, content_type="application/json")
-
-        # 2. app.moderation.input
-        elif point == "app.moderation.input":
+        if stage == "input":
             inputs = params.get("inputs", {})
             query = params.get("query", "")
-
-            flagged = False
-            new_inputs = {}
-
-            for k, v in inputs.items():
-                if any(kw in v for kw in keywords):
-                    flagged = True
-                    new_inputs[k] = self._mask_words(v, keywords) if input_strategy == "overridden" else v
-                else:
-                    new_inputs[k] = v
-
-            query_flagged = any(kw in query for kw in keywords)
-            if query_flagged:
-                flagged = True
-                query = self._mask_words(query, keywords) if input_strategy == "overridden" else query
-
-            if flagged:
-                if input_strategy == "direct_output":
-                    return Response(json.dumps({
-                        "flagged": True,
-                        "action": input_strategy,
-                        "preset_response": input_preset_response
-                    }), status=200, content_type="application/json")
-                else:
-                    return Response(json.dumps({
-                        "flagged": True,
-                        "action": input_strategy,
-                        "inputs": new_inputs,
-                        "query": query
-                    }), status=200, content_type="application/json")
-            else:
-                return Response(json.dumps({
-                    "flagged": False,
-                    "action": "direct_output"
-                }), status=200, content_type="application/json")
-
-        # 3. app.moderation.output
-        elif point == "app.moderation.output":
+            if not isinstance(inputs, dict) or not isinstance(query, str):
+                return self._response({"error": "inputs must be an object and query must be a string"}, 400)
+            # Preserve numbers, booleans, and file objects. Only top-level
+            # textual input fields are eligible for keyword review.
+            flagged = any(isinstance(v, str) and self._is_flagged(v, keywords) for v in inputs.values())
+            flagged = flagged or self._is_flagged(query, keywords)
+            overridden = {
+                "inputs": {k: self._mask_words(v, keywords) if isinstance(v, str) else v
+                           for k, v in inputs.items()},
+                "query": self._mask_words(query, keywords),
+            } if flagged and strategy == "overridden" else {}
+        else:
             text = params.get("text", "")
-            flagged = any(kw in text for kw in keywords)
+            if not isinstance(text, str):
+                return self._response({"error": "text must be a string"}, 400)
+            flagged = self._is_flagged(text, keywords)
+            overridden = {"text": self._mask_words(text, keywords)} if flagged and strategy == "overridden" else {}
 
-            if flagged:
-                if output_strategy == "direct_output":
-                    return Response(json.dumps({
-                        "flagged": True,
-                        "action": output_strategy,
-                        "preset_response": output_preset_response
-                    }), status=200, content_type="application/json")
-                else:
-                    return Response(json.dumps({
-                        "flagged": True,
-                        "action": output_strategy,
-                        "text": self._mask_words(text, keywords)
-                    }), status=200, content_type="application/json")
+        if not flagged:
+            return self._response({"flagged": False, "action": "direct_output"})
+        result = {"flagged": True, "action": strategy}
+        result.update({"preset_response": preset} if strategy == "direct_output" else overridden)
+        return self._response(result)
+
+    @staticmethod
+    def _is_flagged(text: str, keywords: list[str]) -> bool:
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _mask_words(text: str, keywords: list[str]) -> str:
+        # Find spans on the original text, including overlapping occurrences.
+        # Sequential replacement can expose suffixes or re-mask "***".
+        spans = []
+        for keyword in keywords:
+            if not keyword:
+                continue
+            start = text.find(keyword)
+            while start != -1:
+                spans.append((start, start + len(keyword)))
+                start = text.find(keyword, start + 1)
+        merged = []
+        for start, end in sorted(spans):
+            if merged and start < merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
             else:
-                return Response(json.dumps({
-                    "flagged": False,
-                    "action": "direct_output"
-                }), status=200, content_type="application/json")
-
-        return Response(json.dumps({
-            "flagged": False,
-            "action": "direct_output"
-        }), status=200, content_type="application/json")
-
-    def _mask_words(self, text: str, keywords: list[str]) -> str:
-        for kw in keywords:
-            text = text.replace(kw, "***")
-        return text
+                merged.append((start, end))
+        parts = []
+        cursor = 0
+        for start, end in merged:
+            parts.extend((text[cursor:start], "***"))
+            cursor = end
+        parts.append(text[cursor:])
+        return "".join(parts)
