@@ -120,6 +120,58 @@ python -m pytest -q
 
 See [CHANGELOG.md](./CHANGELOG.md) for the 0.0.3 release notes.
 
+## Roadmap
+
+The following features are planned and are not available in 0.0.3. The milestones
+indicate implementation order rather than fixed release dates; scope may change
+based on Dify compatibility and benchmark results.
+
+### 0.0.4+ — Matching performance and rule configuration
+
+- [ ] Evaluate Aho–Corasick multi-keyword matching and compiled-rule caching for
+  large keyword lists; benchmark latency and memory against the current matcher.
+- [ ] Add configurable overlap resolution and rule precedence. Version 0.0.3
+  already merges overlapping matches for masking; configurable policies remain planned.
+- [ ] Add optional regular expressions, case-insensitive matching, full-width /
+  half-width normalization, and simplified / traditional Chinese normalization.
+- [ ] Add allowlists and explicit precedence between allowlist and blocking rules.
+- [ ] Support keyword categories with independent actions and preset responses.
+- [ ] Support custom masking text.
+- [ ] Provide optional diagnostics with matched rule IDs, categories, and original
+  text positions, while preserving the existing Dify moderation response contract.
+
+### Later — Multiple detectors and policy engine
+
+- [ ] Separate detection (`Detector`) from decision logic (`Policy`) so keyword,
+  regular-expression, and model-based detectors can share configurable policies.
+- [ ] Introduce internal `Allow`, `Block`, `Mask`, and `Review` decisions, mapping
+  supported decisions to Dify actions and defining an integration for review handling.
+- [ ] Add configurable personally identifiable information (PII) rules.
+- [ ] Explore streaming moderation across chunk boundaries with request/session
+  isolation; verify the required Dify streaming integration before exposing this feature.
+
+### Later — AI moderation, operations, and evaluation
+
+- [ ] Add hybrid rule-based and AI moderation with configurable OpenAI-style APIs
+  and self-hosted model backends.
+- [ ] Add moderation metrics, including P50/P95/P99 latency and per-rule hit counts.
+- [ ] Add a dry-run mode to evaluate rules without changing the returned content.
+- [ ] Add versioned rule sets, rollback, change history, and per-business configuration.
+- [ ] Build a labeled moderation benchmark reporting Precision, Recall, F1,
+  false-block counts, and P95 latency to assess quality and performance together.
+
+### Publishing follow-ups
+
+- [ ] Validate release tags against `manifest.yaml` versions and package filenames.
+- [ ] Verify GitHub authentication, fork relationship, PR target, and required
+  publishing permissions before building and uploading packages.
+- [ ] Generate release notes from the changelog automatically.
+
+The 0.0.3 changes already cover independent input/output strategies, request and
+configuration validation, authentication hardening, overlap-safe masking, and
+publishing branch consistency with retry handling. See [CHANGELOG.md](./CHANGELOG.md)
+for implemented changes.
+
 ## Privacy
 
 This plugin does not collect user data. See [PRIVACY.md](./PRIVACY.md) for details.
