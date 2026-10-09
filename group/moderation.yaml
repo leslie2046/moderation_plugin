@@ -37,6 +37,26 @@ settings:
       zh_Hans: 分隔符,默认是空格
       ja_JP: "区切り文字、デフォルトはスペース"
 
+  - name: input_strategy
+    type: select
+    required: true
+    label:
+      en_US: Strategy when input is flagged
+      zh_Hans: 输入命中关键词的策略
+      ja_JP: "ヒットしたキーワードの入力ポリシー"
+    default: "direct_output"
+    options:
+      - value: direct_output
+        label:
+          en_US: Return preset response
+          zh_Hans: 直接输出预设回复
+          ja_JP: "プリセット返答を直接出力"
+      - value: overridden
+        label:
+          en_US: "Mask with ***"
+          zh_Hans: 覆盖为 ***
+          ja_JP: "***で上書き"
+
   - name: output_strategy
     type: select
     required: true
@@ -48,14 +68,14 @@ settings:
     options:
       - value: direct_output
         label:
-          en_US: Direct out present response
+          en_US: Return preset response
           zh_Hans: 直接输出预设回复
           ja_JP: "プリセット返答を直接出力"
       - value: overridden
         label:
-          en_US: "Override by **"
-          zh_Hans: 覆盖为**
-          ja_JP: "**で上書き"
+          en_US: "Mask with ***"
+          zh_Hans: 覆盖为 ***
+          ja_JP: "***で上書き"
 
   - name: input_preset_response
     type: text-input
