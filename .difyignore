@@ -177,3 +177,12 @@ cython_debug/
 
 # Windows
 Thumbs.db
+
+# Development files and previously built packages are not runtime assets.
+*.difypkg
+tests/
+requirements-dev.txt
+.env.example
+.difyignore
+CHANGELOG.md
+GUIDE.md

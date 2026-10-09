@@ -1,10 +1,12 @@
 # Privacy Policy
 
-This plugin is designed with privacy in mind and does not collect any user data. We are committed to maintaining your privacy and ensuring your data remains secure.
+This plugin processes app input and model output inside the Dify plugin runtime to perform keyword moderation. Submitted content may contain personal or sensitive information.
 
 ## Data Collection
 
-- **No Personal Information**: We do not collect, store, or process any personal information.
+- **Content Processing**: The plugin checks text against configured keywords and returns a moderation decision, masked text, or a preset response. Non-string input values are preserved in responses.
+- **Authentication**: The plugin reads the configured API key and incoming Bearer token to authenticate requests.
+- **Storage and Logging**: The plugin code does not persist request content or log content or API keys. Dify infrastructure and deployment operators control their own storage and logging policies.
 - **No Usage Data**: We do not track or monitor how you use the tool.
 - **No Analytics**: We do not implement any analytics or tracking mechanisms.
 

@@ -2,6 +2,9 @@
 
 ## 0.0.3
 
+- Add the maintainer contact email required by Marketplace validation.
+- Upgrade the Dify Plugin SDK dependency to `>=0.9.0,<0.10.0`.
+
 - Expose input `direct_output` / `overridden` strategies with English, Chinese,
   and Japanese labels. Existing settings default to `direct_output`.
 - Validate JSON payloads, supported moderation points, and field types.

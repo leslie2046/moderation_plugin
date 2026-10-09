@@ -10,6 +10,8 @@ This plugin exposes a moderation endpoint that Dify can call to inspect both app
 - **Repository:** https://github.com/leslie2046/moderation_plugin
 - **Plugin Version:** 0.0.3
 - **Runtime:** Python 3.12
+- **SDK:** `dify_plugin>=0.9.0,<0.10.0`
+- **Contact:** 253605712@qq.com
 - **Minimum Dify Version:** 0.3.0
 
 ## What It Does
@@ -174,7 +176,7 @@ for implemented changes.
 
 ## Privacy
 
-This plugin does not collect user data. See [PRIVACY.md](./PRIVACY.md) for details.
+This plugin processes content locally for moderation without persisting it or sending it to third-party services. See [PRIVACY.md](./PRIVACY.md) for authentication, storage, and logging details.
 
 ## License
 
